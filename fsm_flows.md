@@ -1,6 +1,6 @@
-## FSM и пользовательские потоки (онбординг, меню, профиль)
+## FSM и пользовательские потоки (онбординг, основной сценарий, профиль)
 
-Документ — практический и самодостаточный. Покрывает: проектирование конечных автоматов для сценариев бота, диаграммы и таблицы состояний, переходы и их правила, хранение и восстановление состояния, обработку отмены/ошибок/неожиданного ввода, идемпотентность, примеры Go‑кода с `tgbotapi/v5` и PostgreSQL.
+Документ — практический и самодостаточный. Покрывает: проектирование конечных автоматов для сценариев бота, диаграммы и таблицы состояний, переходы и их правила, хранение и восстановление состояния, обработку отмены/ошибок/неожиданного ввода, идемпотентность, примеры Go‑кода с `tgbotapi/v5` и PostgreSQL. В качестве иллюстрации используется поток составления меню; адаптируйте шаги под свой домен.
 
 ### Размещение в структуре проекта
 
@@ -8,15 +8,17 @@ FSM находится в каталоге `internal/adapter/telegram/fsm`, ко
 
 - `machine.go` — машина состояний и обработчик `Handle`.
 - `store/postgres` — реализация хранилища состояния.
-- `steps_onboarding.go`, `steps_menu.go` — шаги конкретных потоков.
+- `steps_onboarding.go`, `steps_menu.go` — шаги конкретных потоков (пример).
 
 ### 1) Потоки и состояния (обзор)
 
 Рекомендуемые потоки:
 
-- Онбординг (`onboarding`): сбор аллергий, предпочтений, цели
-- Составление меню (`menu`): дни, пожелания, «что в холодильнике», черновик, фидбек, финализация
+- Онбординг (`onboarding`): пример сбора исходных настроек
+- Основной сценарий (`menu` в примере): последовательность шагов бизнес‑логики
 - Профиль (`profile`): просмотр и изменения
+
+Названия и шаги измените под свой проект; поток `menu` приведён только как пример.
 
 Ключевые принципы:
 - У каждого пользователя может быть одновременно **не более одного активного потока**.
@@ -27,7 +29,7 @@ FSM находится в каталоге `internal/adapter/telegram/fsm`, ко
 
 ### 2) Диаграммы состояний (аски‑схемы)
 
-Онбординг:
+Пример онбординга:
 
 ```
 start -> ASK_ALLERGIES -> ASK_LIKES -> ASK_DISLIKES -> ASK_GOAL -> DONE
@@ -36,7 +38,7 @@ start -> ASK_ALLERGIES -> ASK_LIKES -> ASK_DISLIKES -> ASK_GOAL -> DONE
              CANCEL <------------------------------------------- DONE
 ```
 
-Составление меню:
+Пример основного потока (составление меню):
 
 ```
 start -> ASK_DAYS -> ASK_DESIRES -> ASK_PANTRY -> GENERATING_DRAFT
@@ -75,6 +77,8 @@ CREATE INDEX IF NOT EXISTS idx_user_state_flow ON user_state(flow);
 
 ### 4) Типы и каркас FSM (Go)
 
+Пример: каркас машины состояний с потоками onboarding и menu.
+
 ```go
 package fsm
 
@@ -98,7 +102,7 @@ const (
     FlowMenu       FlowName = "menu"
 )
 
-// Список состояний для онбординга
+// States for onboarding flow
 const (
     StAskAllergies = "ASK_ALLERGIES"
     StAskLikes     = "ASK_LIKES"
@@ -107,7 +111,7 @@ const (
     StDone         = "DONE"
 )
 
-// Список состояний для меню
+// States for menu flow
 const (
     StAskDays       = "ASK_DAYS"
     StAskDesires    = "ASK_DESIRES"
@@ -171,7 +175,7 @@ func (s *PgStore) Clear(ctx context.Context, userID string) error {
     return err
 }
 
-// StepFunc — обработчик состояния. Возвращает следующее состояние.
+// StepFunc processes a state and returns the next state.
 type StepFunc func(ctx context.Context, bot *tgbotapi.BotAPI, st *State, upd tgbotapi.Update) (next string, err error)
 
 type Machine struct {
@@ -193,22 +197,22 @@ func (m *Machine) Handle(ctx context.Context, bot *tgbotapi.BotAPI, upd tgbotapi
     userID, chatID := extractIDs(upd)
     if userID == "" { return nil }
 
-    // Глобальная отмена
+    // Global cancel
     if isCancel(upd) {
         _ = m.store.Clear(ctx, userID)
         send(bot, chatID, "Отменено. Главное меню:")
-        // показать главное меню
+        // show main menu
         return nil
     }
 
     st, err := m.store.Load(ctx, userID)
-    if err != nil { // нет состояния: команда/старт потоков
+    if err != nil { // no state: command/start of flows
         if startFlow := tryStartFlow(bot, upd); startFlow != nil {
-            // начальная запись
+            // initial record
             st = &State{UserID: userID, ChatID: chatID, Flow: startFlow.flow, Name: startFlow.state, Data: map[string]any{}}
             _ = m.store.Save(ctx, st)
         } else {
-            // показать главное меню/подсказку
+            // show main menu/hint
             return nil
         }
     }
@@ -217,7 +221,7 @@ func (m *Machine) Handle(ctx context.Context, bot *tgbotapi.BotAPI, upd tgbotapi
     if step == nil { return errors.New("unknown step") }
     next, err := step(ctx, bot, st, upd)
     if err != nil { return err }
-    if next == "" { return nil } // остаёмся на шаге (повтор ввода)
+    if next == "" { return nil } // stay on current step (repeat input)
     st.Name = next
     if next == StDone { _ = m.store.Clear(ctx, st.UserID) } else { _ = m.store.Save(ctx, st) }
     return nil
@@ -295,7 +299,7 @@ func getText(u tgbotapi.Update) string {
 ### 5) Реализация шагов: Онбординг
 
 ```go
-// Регистрация шагов
+// Steps registration
 func RegisterOnboarding(machine *Machine) {
     machine.Register(FlowOnboarding, StAskAllergies, stepAskAllergies)
     machine.Register(FlowOnboarding, StAskLikes,     stepAskLikes)
@@ -336,7 +340,7 @@ func stepAskDislikes(ctx context.Context, bot *tgbotapi.BotAPI, st *State, upd t
 func stepAskGoal(ctx context.Context, bot *tgbotapi.BotAPI, st *State, upd tgbotapi.Update) (string, error) {
     if text := getText(upd); text != "" {
         st.Data["goal"] = text
-        // Здесь сохранить профиль в БД, идемпотентно (UPSERT)
+        // Save profile to DB here, idempotent (UPSERT)
         send(bot, st.ChatID, "Профиль сохранён. Возвращаю в главное меню.")
         return StDone, nil
     }
@@ -424,23 +428,23 @@ func stepAskPantry(machine *Machine) StepFunc {
 }
 
 func stepGenerating(ctx context.Context, bot *tgbotapi.BotAPI, st *State, upd tgbotapi.Update) (string, error) {
-    // Пока ждём фонового результата — любые сообщения мягко игнорируем
+    // While waiting for background result, politely ignore any messages
     send(bot, st.ChatID, "Черновик в работе, это займёт немного времени…")
     return "", nil
 }
 
 func stepFeedback(ctx context.Context, bot *tgbotapi.BotAPI, st *State, upd tgbotapi.Update) (string, error) {
-    if getText(upd) == "Ок" { // кнопка/слово подтверждения
+    if getText(upd) == "Ок" { // confirmation button/word
         send(bot, st.ChatID, "Финализирую меню…")
         return StFinalizing, nil
     }
-    // иначе — парсить свободный фидбек и обновлять черновик
+    // otherwise parse free feedback and update draft
     send(bot, st.ChatID, "Принято. Я обновлю черновик, напишите 'Ок' когда готовы финализировать.")
     return "", nil
 }
 
 func stepFinalizing(ctx context.Context, bot *tgbotapi.BotAPI, st *State, upd tgbotapi.Update) (string, error) {
-    // сохранить финальное меню в БД
+    // save final menu to DB
     send(bot, st.ChatID, "Готово! Финальное меню сохранено. Возвращаю в главное меню.")
     return StDone, nil
 }
@@ -490,7 +494,7 @@ func done(bot *tgbotapi.BotAPI, chatID int64, text string) {
 ```go
 func updatesLoop(bot *tgbotapi.BotAPI, m *fsm.Machine, updates tgbotapi.UpdatesChannel) {
     for upd := range updates {
-        // глобальные команды вне FSM
+        // global commands outside FSM
         if msg := upd.Message; msg != nil && msg.IsCommand() {
             if msg.Command() == "start" { showMainMenu(bot, msg.Chat.ID); continue }
         }
@@ -514,5 +518,5 @@ func updatesLoop(bot *tgbotapi.BotAPI, m *fsm.Machine, updates tgbotapi.UpdatesC
 
 ---
 
-Готово: у вас есть полный каркас FSM на Go для онбординга и составления меню, с персистентным хранением, обработкой отмены и восстановлением после сбоев, а также примерами шагов и маршрутизацией на основе `tgbotapi/v5` и PostgreSQL.
+Готово: у вас есть каркас FSM на Go с примерами онбординга и основного потока (меню в качестве примера), с персистентным хранением, обработкой отмены и восстановлением после сбоев, а также примерами шагов и маршрутизацией на основе `tgbotapi/v5` и PostgreSQL.
 

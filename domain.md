@@ -1,6 +1,6 @@
 ## Домен и репозитории (сущности, инварианты, порты)
 
-Документ — самодостаточный. Определяет доменные сущности и инварианты, типы‑значения (value objects), интерфейсы портов (репозитории и транзакции) для профиля, кладовой, меню и фидбэка. Примеры кода на Go соответствуют Clean Architecture: домен не зависит от инфраструктуры.
+Документ — самодостаточный. Описывает подход к определению доменных сущностей, инвариантов, value objects и портов (репозитории, транзакции) в независимом от инфраструктуры виде. В примерах используется сервис составления меню; замените эти сущности на свои при адаптации.
 
 ### 1) Базовые принципы
 
@@ -19,30 +19,32 @@ import (
     "time"
 )
 
-// Идентификаторы (могут храниться как UUID в БД)
+// Identifiers (may be stored as UUID in DB)
 type UserID string
 type MenuID string
 type PantryItemID string
 
-// Доменные ошибки (стабильные для слоёв выше)
+// Domain errors (stable for upper layers)
 var (
     ErrNotFound          = errors.New("not found")
     ErrInvariantViolated = errors.New("invariant violated")
 )
 
-// Вспомогательная обёртка для инвариантов
+// Helper wrapper for invariants
 func invariant(cond bool, msg string) error {
     if cond { return nil }
     return fmt.Errorf("%w: %s", ErrInvariantViolated, msg)
 }
 
-// Нормализация тегов/меток (аллергии/лайки/нелайки)
+// Normalize tags (allergies/likes/dislikes)
 func NormalizeTag(s string) string {
     return strings.ToLower(strings.TrimSpace(s))
 }
 ```
 
 ### 2) Value‑objects и перечисления
+
+Пример: перечисление типа приёма пищи для планирования меню.
 
 ```go
 package domain
@@ -67,6 +69,8 @@ func (m MealType) Valid() bool {
 ```
 
 ### 3) Сущности и инварианты
+
+Пример: пользователь, его профиль, кладовая и план меню.
 
 ```go
 package domain
@@ -97,7 +101,7 @@ func NewUserProfile(uid UserID, goal string, likes, dislikes, allergens []string
     nl := normalizeSet(likes)
     nd := normalizeSet(dislikes)
     na := normalizeSet(allergens)
-    // простой инвариант: множества без дубликатов, отсутствуют пустые строки
+    // simple invariant: set without duplicates, no empty strings
     return UserProfile{UserID: uid, Goal: strings.TrimSpace(goal), Likes: nl, Dislikes: nd, Allergies: na, UpdatedAt: now.UTC()}, nil
 }
 
@@ -118,7 +122,7 @@ type PantryItem struct {
     ID      PantryItemID
     UserID  UserID
     Name    string
-    Qty     string // свободная форма: "2 яйца", "200 г"
+    Qty     string // free form: "2 eggs", "200 g"
     Updated time.Time
 }
 
@@ -157,7 +161,7 @@ type MenuItem struct {
     DayIndex  int    // 1..MenuPlan.Days
     MealType  MealType
     Title     string
-    Steps     []string // краткие шаги
+    Steps     []string // short steps
 }
 
 func NewMenuItem(menuID MenuID, day int, meal MealType, title string, steps []string) (MenuItem, error) {
@@ -202,30 +206,30 @@ package domain
 
 import "context"
 
-// UserRepo управляет пользователями
+// UserRepo handles users
 type UserRepo interface {
     GetOrCreateByTelegramID(ctx context.Context, tgUserID int64) (User, error)
 }
 
-// ProfileRepo управляет профилем пользователя
+// ProfileRepo handles user profile
 type ProfileRepo interface {
     Get(ctx context.Context, userID UserID) (*UserProfile, error)
     Upsert(ctx context.Context, profile UserProfile) error
 }
 
-// PantryRepo управляет кладовой пользователя
+// PantryRepo handles user pantry
 type PantryRepo interface {
     List(ctx context.Context, userID UserID) ([]PantryItem, error)
     ReplaceAll(ctx context.Context, userID UserID, items []PantryItem) error
 }
 
-// MenuView представляет удобный снимок меню для чтения
+// MenuView is a convenient snapshot of menu for reading
 type MenuView struct {
     Plan  MenuPlan
     Items []MenuItem
 }
 
-// MenuRepo управляет планами меню и их содержимым
+// MenuRepo manages menu plans and their content
 type MenuRepo interface {
     CreateDraft(ctx context.Context, userID UserID, days int) (MenuID, error)
     ReplaceItems(ctx context.Context, menuID MenuID, items []MenuItem) error
@@ -284,7 +288,7 @@ func (s *MenuService) ComposeDraft(ctx context.Context, userID domain.UserID, da
         for _, it := range items {
             mi, err := domain.NewMenuItem(menuID, it.Day, it.Meal, it.Title, it.Steps)
             if err != nil { return err }
-            // Доп. проверка границы дней (домен не знает Days):
+            // extra bounds check for days (domain unaware of Days):
             if it.Day < 1 || it.Day > days { return errors.New("day index out of range") }
             mis = append(mis, mi)
         }

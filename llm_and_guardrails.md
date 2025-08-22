@@ -1,6 +1,6 @@
 ## LLM и guardrails (Go): схемы JSON, промпты, модерация, ретраи/таймауты
 
-Документ — самодостаточный. Покрывает: конфигурацию клиента, вызовы OpenAI Chat Completions c `response_format: json_schema` (strict) для «черновика» и «финалки», tool/function calling (strict) для чтения профиля, guardrails через `nlpodyssey/openai-agents-go` (input/output, модерация, in‑scope, запрет аллергенов), рероллы, политику таймаутов и ретраев. Примеры на Go через `net/http` или `resty`.
+Документ — самодостаточный. Покрывает: конфигурацию клиента, вызовы OpenAI Chat Completions c `response_format: json_schema` (strict) для «черновика» и «финалки», tool/function calling (strict) для чтения профиля, guardrails через `nlpodyssey/openai-agents-go` (input/output, модерация, in‑scope, запрет аллергенов), рероллы, политику таймаутов и ретраев. В примерах используется генерация меню; подставьте свой домен при адаптации. Примеры на Go через `net/http` или `resty`.
 
 ### 1) Конфигурация и ENV
 
@@ -48,7 +48,7 @@ func NewOpenAIClient(baseURL, apiKey string) *resty.Client {
 
 ### 3) Контракты данных (DTO) для ответа LLM
 
-Черновик и финалка меню фиксируются схемами (те же поля в Go‑DTO). Минимум:
+Черновик и финалка доменного объекта (пример: меню) фиксируются схемами (те же поля в Go‑DTO). Пример:
 
 ```go
 type MealType string
@@ -78,7 +78,7 @@ type LlmFinalMenu struct {
 }
 ```
 
-Для парсинга свободного фидбэка:
+Пример: структура для парсинга свободного фидбэка:
 
 ```go
 type FreeformFeedback struct {
@@ -143,7 +143,7 @@ type ChatRequest struct {
     Model          string        `json:"model"`
     Messages       []ChatMessage `json:"messages"`
     ResponseFormat ResponseFormat `json:"response_format"`
-    // при необходимости: temperature/top_p/max_tokens
+    // optional: temperature/top_p/max_tokens
 }
 
 type Choice struct {
@@ -461,7 +461,7 @@ type ComposeInput struct {
 }
 ```
 
-Где:
+Где (пример меню):
 - `Goal` — цель питания;
 - `Likes` — предпочтительные продукты;
 - `Dislikes` — то, что нужно избегать;
@@ -491,7 +491,7 @@ type LLMGateway interface {
 - Логировать только метаданные: `request_id`, `chat_id`, `menu_id`, статус, длительность. Не логировать промпты/ответы целиком; допускается усечь до хешей/первых 50 символов.
 - Секреты — никогда в логи.
 
-### 13) E2E‑пример: черновик → фидбэк → финалка
+### 13) E2E‑пример: черновик → фидбэк → финалка (меню)
 
 1) Telegram FSM получает от пользователя: `days`, `desires`, `pantry` → сбор `allergies/likes/dislikes/goal` из профиля.
 2) Input guardrails через `agents.InputGuardrail` (in‑scope, модерация).
