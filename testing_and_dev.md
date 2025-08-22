@@ -188,16 +188,16 @@ services:
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass
-      POSTGRES_DB: menubot
+      POSTGRES_DB: yourbot
     ports:
       - "5432:5432"
     volumes:
-      - menubot_pg:/var/lib/postgresql/data
+      - yourbot_pg:/var/lib/postgresql/data
 volumes:
-  menubot_pg: {}
+  yourbot_pg: {}
 ```
 
-Настройте `DATABASE_URL=postgres://user:pass@localhost:5432/menubot?sslmode=disable`.
+Настройте `DATABASE_URL=postgres://user:pass@localhost:5432/yourbot?sslmode=disable`.
 
 ### 9) Smoke‑тесты интеграций (условные)
 
