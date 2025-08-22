@@ -11,7 +11,7 @@
 ENV=dev               # dev|prod
 HTTP_ADDR=:8080
 
-DATABASE_URL=postgres://user:pass@localhost:5432/menubot?sslmode=disable
+DATABASE_URL=postgres://user:pass@localhost:5432/yourbot?sslmode=disable
 
 TELEGRAM_BOT_TOKEN=123456:ABC...  # секрет — не логировать
 TELEGRAM_WEBHOOK_URL=
@@ -36,7 +36,7 @@ LOG_FILE=                          # если задан — JSON+ротация
 Для интеграционных тестов используется отдельная база данных. DSN задаётся через переменную окружения `TEST_DATABASE_URL`; она не требуется при обычном запуске бота, но нужна для тестов репозиториев.
 
 ```env
-TEST_DATABASE_URL=postgres://user:pass@localhost:5432/menubot_test?sslmode=disable
+TEST_DATABASE_URL=postgres://user:pass@localhost:5432/yourbot_test?sslmode=disable
 ```
 
 Подробности использования — в [testing_and_dev](testing_and_dev.md).
@@ -201,7 +201,7 @@ func looksSensitive(s string) bool {
 
 ```go
 cfg, _ := config.Load()
-log := logger.New(logger.Options{Env: cfg.Env, Level: cfg.Log.Level, File: cfg.Log.File, App: "menubot-go"})
+log := logger.New(logger.Options{Env: cfg.Env, Level: cfg.Log.Level, File: cfg.Log.File, App: "yourbot-go"})
 log.Info("service start", slog.String("addr", cfg.HTTP.Addr))
 ```
 
@@ -237,7 +237,7 @@ ll.Info("incoming message")
 ```go
 func main() {
     cfg, err := config.Load(); if err != nil { panic(err) }
-    log := logger.New(logger.Options{Env: cfg.Env, Level: cfg.Log.Level, File: cfg.Log.File, App: "menubot-go"})
+log := logger.New(logger.Options{Env: cfg.Env, Level: cfg.Log.Level, File: cfg.Log.File, App: "yourbot-go"})
 
     // Дальше: пул БД, миграции, бота — используйте log.With(...) для контекста
     log.Info("starting", slog.String("env", cfg.Env))
@@ -247,13 +247,13 @@ func main() {
 Пример dev‑лога (tint):
 
 ```
-14:22:10 INF service start addr=:8080 app=menubot-go env=dev
+14:22:10 INF service start addr=:8080 app=yourbot-go env=dev
 ```
 
 Пример prod JSON (с ротацией):
 
 ```json
-{"time":"2025-08-10T11:22:10Z","level":"INFO","msg":"service start","addr":":8080","app":"menubot-go","env":"prod"}
+{"time":"2025-08-10T11:22:10Z","level":"INFO","msg":"service start","addr":":8080","app":"yourbot-go","env":"prod"}
 ```
 
 ---

@@ -30,8 +30,8 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 Соберите и запустите контейнер с нужными переменными окружения:
 
 ```bash
-docker build -t menubot .
-docker run -d --env-file .env -p 8080:8080 menubot
+docker build -t yourbot .
+docker run -d --env-file .env -p 8080:8080 yourbot
 ```
 
 ### Обратный прокси и TLS
@@ -83,7 +83,7 @@ docker run -d --name traefik \
 docker run -d --name bot \
   --network traefik \
   --env-file .env \
-  menubot
+  yourbot
 ```
 
 ### Health-check, мониторинг и логирование
