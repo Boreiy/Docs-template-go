@@ -11,3 +11,5 @@
 6. PostgreSQL и миграции — минимальная схема, pgx/v5, транзакции; автоприменение миграций. [postgresql](postgresql.md)
 7. Конфигурация и логирование — .env и конфиги; slog+tint+jsonhandler+lumberjack; приватность/PII. [config_logging](config_logging.md)
 8. Тестирование и дев‑среда — testing/testify/ginkgo, покрытие, Makefile/запуск, Docker/compose. [testing_and_dev](testing_and_dev.md)
+9. CI/CD pipeline — GitHub Actions, кэш, тесты, деплой. [ci_cd_pipeline](ci_cd_pipeline.md)
+10. Планирование фоновых задач — cron и тикеры. [scheduler](scheduler.md)
