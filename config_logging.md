@@ -205,7 +205,7 @@ log := logger.New(logger.Options{Env: cfg.Env, Level: cfg.Log.Level, File: cfg.L
 log.Info("service start", slog.String("addr", cfg.HTTP.Addr))
 ```
 
-### 4) Контекстные поля и корелляция
+### 4) Контекстные поля и корреляция
 
 Соглашение по полям: `request_id`, `chat_id`, `update_id`, `user_id` — добавляйте через `With`/`WithGroup`.
 
